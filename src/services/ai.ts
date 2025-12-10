@@ -47,17 +47,19 @@ export function buildPreviewHtml(files: Record<string, string>): string | null {
 
   if (appTsx) {
     // Convert TypeScript/JSX to plain JS for browser execution
-    // Remove TypeScript types and convert to plain JSX
     let appCode = appTsx
       // Remove import statements (we'll use CDN)
       .replace(/^import\s+.*?;?\s*$/gm, '')
       // Remove export default
-      .replace(/export\s+default\s+/, '')
-      // Remove TypeScript type annotations
-      .replace(/:\s*React\.FC\s*(<[^>]*>)?/g, '')
-      .replace(/:\s*\w+(\[\])?(\s*\|[^=]+)?(?=\s*[=,);])/g, '')
-      .replace(/<[A-Z]\w*>/g, '') // Remove generic type params
-      .replace(/as\s+\w+/g, '')
+      .replace(/export\s+default\s+/g, '')
+      // Remove TypeScript type annotations more thoroughly
+      .replace(/:\s*React\.(FC|FunctionComponent|ComponentType|ReactNode|ReactElement)(\s*<[^>]*>)?/g, '')
+      .replace(/:\s*(string|number|boolean|void|any|never|unknown|null|undefined)(\[\])?(\s*\|[^=\n]+)?(?=\s*[=,);{\n])/g, '')
+      .replace(/:\s*\{[^}]+\}(?=\s*[=,);])/g, '') // Remove inline object types
+      .replace(/<(\s*[A-Z]\w*\s*(,\s*[A-Z]\w*)*\s*)>(?=\s*\()/g, '') // Remove generic type params on functions
+      .replace(/\bas\s+\w+(\[\])?\b/g, '') // Remove type assertions
+      .replace(/interface\s+\w+\s*\{[^}]*\}/g, '') // Remove interface declarations
+      .replace(/type\s+\w+\s*=\s*[^;]+;/g, '') // Remove type aliases
       .trim();
 
     // Extract the component name (usually the last function/const declaration)
@@ -233,10 +235,15 @@ export function buildPreviewHtml(files: Record<string, string>): string | null {
     // cn utility
     const cn = (...classes) => classes.filter(Boolean).join(' ');
 
-    ${appCode}
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(${componentName}));
+    try {
+      ${appCode}
+      
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(React.createElement(${componentName}));
+    } catch (err) {
+      console.error('Preview render error:', err);
+      document.getElementById('root').innerHTML = '<div style="padding: 2rem; color: #ef4444; font-family: monospace;"><h2>Preview Error</h2><pre>' + err.message + '</pre></div>';
+    }
   </script>
 </body>
 </html>`;
