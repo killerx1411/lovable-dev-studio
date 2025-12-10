@@ -5,42 +5,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SYSTEM_PROMPT = `You are an expert full-stack developer. Your task is to generate complete, working project code based on user prompts.
+const SYSTEM_PROMPT = `You are an expert full-stack developer. Generate complete, working project code.
 
-IMPORTANT RULES:
-1. Generate complete, working code - no placeholders or TODOs
-2. Use modern best practices (React 18, TypeScript, Tailwind CSS)
-3. Include all necessary files for a working project
-4. Make the code clean, well-organized, and production-ready
-5. Include beautiful, responsive UI with Tailwind CSS
-6. Add helpful comments where needed
+CRITICAL JSON RULES:
+1. Output ONLY a valid JSON object - no markdown, no code blocks, no explanation
+2. All string values must have properly escaped characters:
+   - Use \\\\ for backslashes
+   - Use \\" for quotes inside strings
+   - Use \\n for newlines (not actual line breaks inside string values)
+   - Use \\t for tabs
+3. Double-check your JSON is valid before responding
 
-OUTPUT FORMAT:
-You must respond with a valid JSON object containing a "files" property. The files property is an object where keys are file paths and values are file contents.
+DEVELOPMENT RULES:
+1. Generate complete, working code - no placeholders
+2. Use React 18, TypeScript, Tailwind CSS
+3. Keep code simple and clean
 
-Example response format:
-{
-  "files": {
-    "index.html": "<!DOCTYPE html>...",
-    "src/App.tsx": "import React from 'react'...",
-    "src/main.tsx": "import { createRoot }...",
-    "src/index.css": "@tailwind base...",
-    "package.json": "{ \"name\": \"app\"... }",
-    "vite.config.ts": "import { defineConfig }...",
-    "tsconfig.json": "{ \"compilerOptions\"... }",
-    "tailwind.config.js": "module.exports..."
-  }
-}
+OUTPUT FORMAT (raw JSON only):
+{"files":{"index.html":"<!DOCTYPE html>...","src/App.tsx":"import React from \\"react\\";..."}}
 
-For simple apps that can work with just HTML/CSS/JS, generate a single index.html with embedded styles and scripts.
-For React apps, generate the full project structure.
-
-Always include:
-- A clear project structure
-- All necessary configuration files
-- Complete, working code
-- Beautiful UI with Tailwind CSS
-- Proper TypeScript types`;
+For simple apps, use a single index.html with embedded styles/scripts.
+For React apps, include: index.html, src/main.tsx, src/App.tsx, src/index.css, package.json, vite.config.ts, tsconfig.json, tailwind.config.js`;
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -118,32 +103,39 @@ serve(async (req) => {
 
     console.log('Raw AI response:', content.substring(0, 500));
 
-    // Parse the JSON response - handle markdown code blocks
-    let jsonContent = content;
+    // Clean and parse the response
+    let jsonContent = content.trim();
     
     // Remove markdown code blocks if present
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1];
+    const codeBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1].trim();
+    }
+    
+    // Try to extract just the JSON object
+    const jsonStart = jsonContent.indexOf('{');
+    const jsonEnd = jsonContent.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
     }
 
-    // Try to parse the JSON
     let result;
     try {
-      result = JSON.parse(jsonContent.trim());
+      result = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Initial parse failed, attempting repair:', parseError);
       
-      // Try to extract JSON object from the response
-      const objectMatch = jsonContent.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        try {
-          result = JSON.parse(objectMatch[0]);
-        } catch (e) {
-          throw new Error('Failed to parse generated project structure');
-        }
-      } else {
-        throw new Error('Failed to parse generated project structure');
+      // Try to repair common JSON issues
+      try {
+        // Fix unescaped newlines in strings (common AI mistake)
+        let repaired = jsonContent
+          .replace(/[\r\n]+/g, '\\n')  // Replace actual newlines with escaped ones
+          .replace(/\t/g, '\\t');       // Replace tabs
+        
+        result = JSON.parse(repaired);
+      } catch (repairError) {
+        console.error('Repair attempt failed:', repairError);
+        throw new Error('Failed to parse generated project structure. Please try again.');
       }
     }
 
