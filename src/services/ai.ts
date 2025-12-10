@@ -14,26 +14,7 @@ export async function generateProject(prompt: string): Promise<GeneratedProject>
 }
 
 export function buildPreviewHtml(files: Record<string, string>): string | null {
-  // Check for index.html first (simple HTML projects)
-  const indexHtml = files['index.html'];
-  
-  // If it's a standalone HTML file (not referencing external tsx/ts files)
-  if (indexHtml && !indexHtml.includes('src="/src/') && !indexHtml.includes("src='/src/")) {
-    // Inject any CSS
-    let html = indexHtml;
-    
-    const cssFiles = Object.entries(files).filter(([path]) => 
-      path.endsWith('.css') && !path.includes('index.css')
-    );
-
-    for (const [, css] of cssFiles) {
-      html = html.replace('</head>', `<style>${css}</style></head>`);
-    }
-
-    return html;
-  }
-
-  // For React/TypeScript projects, try to render them live
+  // Check if this is a React project (has App.tsx)
   const appTsx = files['src/App.tsx'] || files['App.tsx'];
   const indexCss = files['src/index.css'] || files['index.css'] || '';
   
@@ -45,6 +26,7 @@ export function buildPreviewHtml(files: Record<string, string>): string | null {
     .replace(/@import\s+[^;]+;/g, '')
     .trim();
 
+  // If it's a React project, render it live
   if (appTsx) {
     // Convert TypeScript/JSX to plain JS for browser execution
     let appCode = appTsx
@@ -119,7 +101,7 @@ export function buildPreviewHtml(files: Record<string, string>): string | null {
     const Star = createIcon("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z");
     const Heart = createIcon("M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z");
     const Home = createIcon("M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z");
-    const Settings = createIcon("M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z");
+    const Settings = createIcon("M12 15a3 3 0 100-6 3 3 0 000 6z");
     const User = createIcon("M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z");
     const Mail = createIcon("M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6");
     const Calendar = createIcon("M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18");
@@ -247,6 +229,24 @@ export function buildPreviewHtml(files: Record<string, string>): string | null {
   </script>
 </body>
 </html>`;
+  }
+
+  // Check for index.html for simple HTML projects
+  const indexHtml = files['index.html'];
+  
+  if (indexHtml) {
+    // Inject any CSS
+    let html = indexHtml;
+    
+    const cssFiles = Object.entries(files).filter(([path]) => 
+      path.endsWith('.css') && !path.includes('index.css')
+    );
+
+    for (const [, css] of cssFiles) {
+      html = html.replace('</head>', `<style>${css}</style></head>`);
+    }
+
+    return html;
   }
 
   return null;
